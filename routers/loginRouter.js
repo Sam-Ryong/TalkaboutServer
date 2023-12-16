@@ -1,75 +1,49 @@
 const express = require("express");
-const fetch = require("node-fetch");
+const fs = require("fs");
 
 const router = express.Router();
 
-var client_id = "EStY7Rur7honNOcLSHCw";
-var client_secret = "PknhV6qJIM";
-var state = "RAMDOM_STATE-anyword";
-var redirectURI = encodeURI("http://127.0.0.1:80/login/redirect");
-var api_url = "";
+router.post("/api/nickname", (req, res) => {
+  const nickname = req.body.nickname;
 
-router.get("/login", (req, res) => {
-  api_url =
-    "https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=" +
-    client_id +
-    "&redirect_uri=" +
-    redirectURI +
-    "&state=" +
-    state;
-  res.writeHead(200, { "Content-Type": "text/html;charset=utf-8" });
-  res.end(
-    "<a href='" +
-      api_url +
-      "'><img height='50' src='http://static.nid.naver.com/oauth/small_g_in.PNG'/></a>"
-  );
-});
-
-router.get("/login/redirect", async (req, res) => {
-  const code = req.query.code;
-  const state = req.query.state;
-  const api_url =
-    "https://nid.naver.com/oauth2.0/token?grant_type=authorization_code&client_id=" +
-    client_id +
-    "&client_secret=" +
-    client_secret +
-    "&redirect_uri=" +
-    redirectURI +
-    "&code=" +
-    code +
-    "&state=" +
-    state;
-
-  const response = await fetch(api_url, {
-    headers: {
-      "X-Naver-Client-Id": client_id,
-      "X-Naver-Client-Secret": client_secret,
-    },
-  });
-
-  const tokenRequest = await response.json();
-
-  if ("access_token" in tokenRequest) {
-    const { access_token } = tokenRequest;
-    const apiUrl = "https://openapi.naver.com/v1/nid/me";
-
-    const data = await fetch(apiUrl, {
-      headers: {
-        Authorization: `Bearer ${access_token}`,
+  if (!fs.existsSync(`./user/${nickname}.json`)) {
+    const initialData = {
+      data: {
+        messages: [
+          {
+            role: "system",
+            content:
+              "- 시스템은 민감한 사회적 문제, 욕설, 위험, 폭력적인 주제에 대한 언급을 피한다.\r\n- 시스템은 사용자의 입력을 바탕으로 새로운 질문을 생성한다.\r\n- 생성하는 질문의 내용은 이전 대화의 맥락과 연관이 있어야 한다.",
+          },
+        ],
+        topP: 0.8,
+        topK: 0,
+        maxTokens: 256,
+        temperature: 0.5,
+        repeatPenalty: 5,
+        stopBefore: [],
+        includeAiFilters: true,
       },
-    });
-
-    const userData = await data.json();
-
-    //사용자 정보 콘솔로 받아오기 -> DB에 저장해야 합니다.
-    console.log("userData:", userData);
+      sum: { title: "", conv: "" },
+    };
+    fs.writeFileSync(
+      `./user/${nickname}.json`,
+      JSON.stringify(initialData, null, 2),
+      "utf8"
+    );
   }
 
-  res.send("DB에 저장하고 랜드페이지로 redirect ");
-});
+  fs.readFile(`./user/${nickname}.json`, "utf8", (err, data) => {
+    if (err) {
+      console.error("파일 읽기 오류:", err);
+      res.send("저장 되어 있지 않음");
+    }
+    const jsonData = JSON.parse(data);
 
-router.get("/logout", (req, res) => {
-  res.send("logout");
+    const updatedJsonString = JSON.stringify(jsonData.data.messages, null, 2);
+
+    res.send("OK");
+  });
 });
 
 module.exports = router;

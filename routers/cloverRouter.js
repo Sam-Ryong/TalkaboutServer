@@ -3,14 +3,31 @@ const axios = require("axios");
 const fs = require("fs");
 
 const router = express.Router();
+const list = [
+  "돈 키호테",
+  "1984",
+  "벌레",
+  "죄와 벌",
+  "로미오와 줄리엣",
+  "아그네스의 집",
+  "햄릿",
+  "호밀밭의 파수꾼",
+  "오만과 편견",
+  "죽은 시인의 사회",
+  "크라이메리아의 라쿠",
+  "어린 왕자",
+  "사랑의 불시착",
+  "베를린 베를린",
+  "흰",
+];
 
-router.get("/", (req, res) => {
+router.get("/talkabout/:nickname", (req, res) => {
   res.send("talkabout");
 });
 
-router.post("/book", (req, res) => {
-  const bookname = req.body.bookname;
-  console.log(bookname);
+router.post("/api/reset/:nickname", (req, res) => {
+  const bookname = list[Math.floor(Math.random() * list.length)];
+  const nickname = req.params.nickname;
   const postData = {
     messages: [
       {
@@ -52,22 +69,46 @@ router.post("/book", (req, res) => {
       const match = regex.exec(response.data);
       const resultContent = match ? match[1] : null;
 
-      fs.readFile("./user/hsp0509/1.json", "utf8", (err, data) => {
+      fs.readFile(`./user/${nickname}.json`, "utf8", (err, data) => {
         if (err) {
           console.error("파일 읽기 오류:", err);
           res.send("정보 저장에 실패했어요.");
         }
 
-        const jsonData = JSON.parse(data);
+        const jsonData = {
+          data: {
+            messages: [
+              {
+                role: "system",
+                content:
+                  "- 시스템은 민감한 사회적 문제, 욕설, 위험, 폭력적인 주제에 대한 언급을 피한다.\r\n- 시스템은 사용자의 입력을 바탕으로 새로운 질문을 생성한다.\r\n- 생성하는 질문의 내용은 이전 대화의 맥락과 연관이 있어야 한다.",
+              },
+            ],
+            topP: 0.8,
+            topK: 0,
+            maxTokens: 256,
+            temperature: 0.5,
+            repeatPenalty: 5,
+            stopBefore: [],
+            includeAiFilters: true,
+          },
+          sum: {
+            title: "",
+            conv: "",
+          },
+        };
 
         jsonData.data.messages.push({
           role: "assistant",
           content: resultContent,
         });
+        jsonData.sum.title = bookname;
+        jsonData.sum.conv = jsonData.sum.conv + +"어시스턴트: " + resultContent;
+
         const updatedJsonString = JSON.stringify(jsonData, null, 2); // 2는 들여쓰기 수
         // 파일 쓰기
         fs.writeFile(
-          "./user/hsp0509/1.json",
+          `./user/${req.params.nickname}.json`,
           updatedJsonString,
           "utf8",
           (err) => {
@@ -90,10 +131,10 @@ router.post("/book", (req, res) => {
     });
 });
 
-router.post("/chat", (req, res) => {
+router.post("/api/talkabout/:nickname", (req, res) => {
   const chat = req.body.chat;
 
-  fs.readFile("./user/hsp0509/1.json", "utf8", (err, data) => {
+  fs.readFile(`./user/${req.params.nickname}.json`, "utf8", (err, data) => {
     if (err) {
       console.error("파일 읽기 오류:", err);
       res.send("정보 저장에 실패했어요.");
@@ -105,7 +146,6 @@ router.post("/chat", (req, res) => {
       content: chat,
     });
 
-    console.log(jsonData.data);
     axios
       .post(
         "https://clovastudio.stream.ntruss.com/testapp/v1/chat-completions/HCX-002",
@@ -130,10 +170,13 @@ router.post("/chat", (req, res) => {
           role: "assistant",
           content: resultContent,
         });
+        jsonData.sum.conv =
+          jsonData.sum.conv + "\r\n어시스턴트: " + resultContent;
+        jsonData.sum.conv = jsonData.sum.conv + "\r\n사용자: " + chat;
         const updatedJsonString = JSON.stringify(jsonData, null, 2); // 2는 들여쓰기 수
         // 파일 쓰기
         fs.writeFile(
-          "./user/hsp0509/1.json",
+          `./user/${req.params.nickname}.json`,
           updatedJsonString,
           "utf8",
           (err) => {
@@ -143,7 +186,58 @@ router.post("/chat", (req, res) => {
             }
 
             console.log("JSON 파일이 성공적으로 수정되었습니다.");
-            res.send(resultContent);
+
+            if (jsonData.data.messages.length >= 10) {
+              axios
+                .post(
+                  "https://clovastudio.stream.ntruss.com/testapp/v1/chat-completions/HCX-002",
+                  {
+                    messages: [
+                      {
+                        role: "system",
+                        content:
+                          "- 사용자와 어시스턴트의 대화를 바탕으로 사용자의 의견을 요약한다.\n- 요약은 한 문단을 넘어서는 안되며, 사용자의 발언 이외의 다른 의견이 들어가서는 안된다.\n- 대화는 특정 도서에 대한 내용이며, 도서 명은 [BOOK] 토큰 사이에 주어진다.\n- 대화는 [CHAT] 토큰 사이에 주어진다.\n- 요약은 사용자가 어떤 생각을 했는지에 중점을 두고 이루어져야 한다.\n- 요약의 첫 문장은 '''당신은 [BOOK] 라는 책에 대해'''로 시작해야 한다.\n- 요약은 사용자의 의견에 긍정하거나 동의해야 동의해야 한다.",
+                      },
+                      {
+                        role: "user",
+                        content: `[BOOK] ${jsonData.sum.title} [BOOK]\r\n[CHAT] ${jsonData.sum.conv} [CHAT]`,
+                      },
+                    ],
+                    topP: 0.8,
+                    topK: 0,
+                    maxTokens: 512,
+                    temperature: 0.3,
+                    repeatPenalty: 5.0,
+                    stopBefore: [],
+                    includeAiFilters: true,
+                  },
+                  {
+                    headers: {
+                      "X-NCP-CLOVASTUDIO-API-KEY":
+                        "NTA0MjU2MWZlZTcxNDJiY9B2x/lnHOLMzdeUJ8HUttYmOr+OiXujo+AAZZ4WjQoIeCCCw7dSHiLcvrjdeN5MWIh9wx4lofMExV4q1D5AW0TwS9PbKo+IdDMFnViLWgD/htfOlq+mGmk6onJPuvx4MkQYITkn00wj3KofhClDgYm+8CgxQLvlSWjtOF6taIRi2Vz0i4yFPCen1cuRl6/s5mxNj2n3CajOfKwgIyPXms0=",
+                      "X-NCP-APIGW-API-KEY":
+                        "b60LQZjYl5dUquwPam7iVaai0NVIEtDs497uvIom",
+                      "X-NCP-CLOVASTUDIO-REQUEST-ID":
+                        "aadb572132fd49f981874f7a55cb59a3",
+                      "Content-Type": "application/json",
+                      Accept: "text/event-stream",
+                    },
+                  }
+                )
+                .then((response2) => {
+                  const regex2 = /event:result\n(?:.|\n)*?content":"([^"]*)"/;
+                  const match2 = regex2.exec(response2.data);
+                  const resultContent2 = match2 ? match2[1] : null;
+
+                  jsonData.data.messages.push({
+                    role: "assistant",
+                    content: resultContent2,
+                  });
+                  res.send(jsonData.data.messages.slice(1));
+                });
+            } else {
+              res.send(jsonData.data.messages.slice(1));
+            }
           }
         );
       })
