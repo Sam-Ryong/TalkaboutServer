@@ -4,7 +4,8 @@ const path = require("path");
 const bodyParser = require("body-parser");
 
 //routers
-const loginRouter = require("./routers/loginRouter");
+const loginRouter = require("./routers/loginRouter.js");
+const cloverRouter = require("./routers/cloverRouter.js");
 
 // 변수 선언
 const app = express();
@@ -16,6 +17,7 @@ app.use(bodyParser.urlencoded({ extended: true, limit: "10mb" }));
 
 //Router
 app.use("/", loginRouter);
+app.use("/", cloverRouter);
 
 app.listen(80, () => {
   console.log("Server is running on http://localhost:80");
