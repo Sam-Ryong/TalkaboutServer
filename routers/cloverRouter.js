@@ -1,5 +1,7 @@
 const express = require("express");
 const axios = require("axios");
+const fs = require("fs");
+
 const router = express.Router();
 
 router.get("/", (req, res) => {
@@ -49,12 +51,107 @@ router.post("/book", (req, res) => {
       const regex = /event:result\n(?:.|\n)*?content":"([^"]*)"/;
       const match = regex.exec(response.data);
       const resultContent = match ? match[1] : null;
-      res.send(resultContent); // 책에 대한 질문 생성
+
+      fs.readFile("./user/hsp0509/1.json", "utf8", (err, data) => {
+        if (err) {
+          console.error("파일 읽기 오류:", err);
+          res.send("정보 저장에 실패했어요.");
+        }
+
+        const jsonData = JSON.parse(data);
+
+        jsonData.data.messages.push({
+          role: "assistant",
+          content: resultContent,
+        });
+        const updatedJsonString = JSON.stringify(jsonData, null, 2); // 2는 들여쓰기 수
+        // 파일 쓰기
+        fs.writeFile(
+          "./user/hsp0509/1.json",
+          updatedJsonString,
+          "utf8",
+          (err) => {
+            if (err) {
+              console.error("파일 쓰기 오류:", err);
+              return;
+            }
+
+            console.log("JSON 파일이 성공적으로 수정되었습니다.");
+          }
+        );
+
+        res.send(resultContent);
+      });
+      // 책에 대한 질문 생성
     })
     .catch((error) => {
       console.error("에러 발생:", error);
       res.send("질문을 생성하지 못했어요.");
     });
+});
+
+router.post("/chat", (req, res) => {
+  const chat = req.body.chat;
+
+  fs.readFile("./user/hsp0509/1.json", "utf8", (err, data) => {
+    if (err) {
+      console.error("파일 읽기 오류:", err);
+      res.send("정보 저장에 실패했어요.");
+    }
+    const jsonData = JSON.parse(data);
+
+    jsonData.data.messages.push({
+      role: "user",
+      content: chat,
+    });
+
+    console.log(jsonData.data);
+    axios
+      .post(
+        "https://clovastudio.stream.ntruss.com/testapp/v1/chat-completions/HCX-002",
+        jsonData.data,
+        {
+          headers: {
+            "X-NCP-CLOVASTUDIO-API-KEY":
+              "NTA0MjU2MWZlZTcxNDJiY9B2x/lnHOLMzdeUJ8HUttYmOr+OiXujo+AAZZ4WjQoIeCCCw7dSHiLcvrjdeN5MWIh9wx4lofMExV4q1D5AW0TwS9PbKo+IdDMFnViLWgD/htfOlq+mGmk6onJPuvx4MkQYITkn00wj3KofhClDgYm+8CgxQLvlSWjtOF6taIRi2Vz0i4yFPCen1cuRl6/s5mxNj2n3CajOfKwgIyPXms0=",
+            "X-NCP-APIGW-API-KEY": "b60LQZjYl5dUquwPam7iVaai0NVIEtDs497uvIom",
+            "X-NCP-CLOVASTUDIO-REQUEST-ID": "aadb572132fd49f981874f7a55cb59a3",
+            "Content-Type": "application/json",
+            Accept: "text/event-stream",
+          },
+        }
+      )
+      .then((response) => {
+        const regex = /event:result\n(?:.|\n)*?content":"([^"]*)"/;
+        const match = regex.exec(response.data);
+        const resultContent = match ? match[1] : null;
+
+        jsonData.data.messages.push({
+          role: "assistant",
+          content: resultContent,
+        });
+        const updatedJsonString = JSON.stringify(jsonData, null, 2); // 2는 들여쓰기 수
+        // 파일 쓰기
+        fs.writeFile(
+          "./user/hsp0509/1.json",
+          updatedJsonString,
+          "utf8",
+          (err) => {
+            if (err) {
+              console.error("파일 쓰기 오류:", err);
+              return;
+            }
+
+            console.log("JSON 파일이 성공적으로 수정되었습니다.");
+            res.send(resultContent);
+          }
+        );
+      })
+      .catch((error) => {
+        console.error("에러 발생:", error);
+        res.send("질문을 생성하지 못했어요.");
+      });
+  });
 });
 
 module.exports = router;
