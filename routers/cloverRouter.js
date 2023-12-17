@@ -19,6 +19,14 @@ const list = [
   "사랑의 불시착",
   "베를린 베를린",
   "흰",
+  "동물농장",
+  "파리대왕",
+  "다섯째 아이",
+  "야성의 부름",
+  "달과 6펜스",
+  "데미안",
+  "젊은 예술가의 초상",
+  "차라투스트라는 이렇게 말했다",
 ];
 
 router.get("/talkabout/:nickname", (req, res) => {
@@ -131,6 +139,7 @@ router.post("/api/reset/:nickname", (req, res) => {
     });
 });
 
+//req.body.chat에 사용자의 문장을 보내주면 대화 기록을 가져옴.
 router.post("/api/talkabout/:nickname", (req, res) => {
   const chat = req.body.chat;
 
